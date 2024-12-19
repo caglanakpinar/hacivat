@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "chatbot-transformer"
+version = "0.1.0"
+description = ""
+authors = ["caglanakpinar <cakpinar23@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+streamlit = "^1.41.1"
+streamlit-authenticator = "^0.4.1"
+deta = "^1.2.0"
+pre-commit = "^4.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
