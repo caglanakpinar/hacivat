@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "chatbot-transformer"
+name = "hacivat"
 version = "0.1.0"
 description = ""
 authors = ["caglanakpinar <cakpinar23@gmail.com>"]
