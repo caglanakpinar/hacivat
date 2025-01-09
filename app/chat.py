@@ -1,14 +1,35 @@
+from distutils.command.config import config
+
 import streamlit as st
 import requests
 import json
 from datetime import datetime
+import argparse
+import yaml
 
 from utils import Paths
 
 
+class Configs:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def set_configs_from_yaml(cls):
+        _cls = Configs()
+        with open(Paths.parent_dir / "app" /"config.yaml", "r") as stream:
+            config = yaml.safe_load(stream)
+
+        for k, v in config.items():
+            setattr(_cls, k, v)
+        return _cls
+
 
 class Bot:
     url = 'http://0.0.0.0:8384'
+    args = Configs.set_configs_from_yaml()
+    url = getattr(args, 'url', 'http://0.0.0.0:8384')
+    additional_file_path = getattr(args, 'additional_file_path', None)
 
     @staticmethod
     def executable(prompt):
@@ -22,8 +43,10 @@ class Bot:
             self.train_yourself()
 
     def add_chat_history(self, chat_history_files, date):
-        data = json.dumps({"files": chat_history_files, "date": date})
-        r = requests.get(self.url+"/files", data=data)
+        data = {"files": chat_history_files, "date": date}
+        if self.additional_file_path is not None:
+            data['additional_file_path'] = self.additional_file_path
+        r = requests.get(self.url+"/files", data=json.dumps(data))
 
     def answer_me(self, prompt):
         if self.executable(prompt):
@@ -39,10 +62,10 @@ class Bot:
 
 
 class ChatCollect(Paths, Bot):
-    cache_files = []
     cache = []
-    chat_history_pre_line_cnt = 10
-    total_cache_files = 1000
+    chat_history_pre_line_cnt = 5
+    total_cache_files = 2
+    remove_cache_limit = 4
 
     def get_cache_time(self):
         return (
@@ -59,19 +82,31 @@ class ChatCollect(Paths, Bot):
                 for key, value in message.items():
                     f.write('%s:%s\n' % (key, value))
         f.close()
-        self.cache = []
+
+    @property
+    def cache_files(self) -> list:
+        p = self.data_path.glob('**/*')
+        files = list(sorted([str(x) for x in p if x.is_file()]))
+        return files[-2:]
 
 
     def caching(self, messages):
         if len(messages) % self.chat_history_pre_line_cnt == 0 and len(messages) != 0:
-            self.cache = messages[-10:]
+            self.cache = [{m['role']: m['content']} for m in messages[-10:]]
             _file = self.data_path / f"{self.get_cache_time()}.txt"
-            self.cache_files.append(_file)
             self.write_cache_message(_file)
-            if len(self.cache_files) == self.total_cache_files:
+            if len(self.cache_files) % self.total_cache_files == 0:
                 self.add_chat_history(self.cache_files, self.get_cache_time())
-                self.cache_files = []
-                self.remove_files_in_data()
+
+    def individual_response(self, prompt, response):
+        self.cache = [
+            {"user": prompt},
+            {"assistant": response}
+        ] * 1000
+        _file = self.data_path / f"{self.get_cache_time()}.txt"
+        self.write_cache_message(_file)
+        if len(self.cache_files) % self.total_cache_files == 0:
+            self.add_chat_history(self.cache_files, self.get_cache_time())
 
 
 bot = Bot()
@@ -86,12 +121,13 @@ def interface():
         str(Paths.parent_dir / "app/hacivat.png"),
         width=200
     )
-
     with st.sidebar:
-        st.write("please enter your answer you like!")
-        st.chat_input("please enter your answer you like!")
-
-
+        expected_prompt = st.chat_input("please enter your answer you like!")
+        if expected_prompt:
+            content = st.session_state.messages[-2]['content']
+            st.write(content)
+            st.write(expected_prompt)
+            collector.individual_response(content, expected_prompt)
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -116,7 +152,6 @@ def interface():
         with st.chat_message("assistant"):
             response = bot.answer_me(prompt)
             st.markdown(response)
-
         st.session_state.messages.append({"role": "assistant", "content": response})
 
 

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 
 
 class Paths:
@@ -9,5 +10,5 @@ class Paths:
         data_path.mkdir()
 
     def remove_files_in_data(self):
-        self.data_path.rmdir()
+        shutil.rmtree(self.data_path)
         self.data_path.mkdir()
